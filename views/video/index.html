@@ -1,0 +1,142 @@
+{{ define "extrahead" }}
+<style>
+textarea {
+    width: 500px;
+    min-height: 75px;
+}
+</style>
+{{ end }}
+
+{{ define "body" }}
+Browser Session Description
+<br/>
+<textarea id="localSessionDescription" readonly="true"></textarea>
+<br/>
+
+<button onclick="window.copySessionDescription()">Copy browser Session Description to clipboard</button>
+
+<br/>
+<br/>
+<br/>
+
+Remote Session Description
+<br/>
+<textarea id="remoteSessionDescription"></textarea>
+<br/>
+<button onclick="window.startSession()">Start Session</button>
+<br/>
+<br/>
+
+Video
+<br/>
+<div id="remoteVideos"></div> <br />
+
+Logs
+<br/>
+<div id="div"></div>
+{{ end }}
+
+{{ define "extrabody" }}
+<script>
+const pc = new RTCPeerConnection({
+    iceServers: [{
+        urls: 'stun:stun.l.google.com:19302'
+    }]
+})
+const log = msg => {
+    document.getElementById('div').innerHTML += msg + '<br>'
+}
+
+pc.ontrack = function (event) {
+    if (event.track.kind == "video") {
+        const el = document.createElement(event.track.kind)
+        el.srcObject = event.streams[0]
+        el.autoplay = true
+        el.controls = true
+
+        document.getElementById('remoteVideos').appendChild(el)
+    }
+    
+    if (event.track.kind == "audio" && false) {
+        const el = document.createElement(event.track.kind)
+        el.srcObject = event.streams[0]
+        el.autoplay = true
+        el.controls = true
+
+        document.getElementById('remoteVideos').appendChild(el)
+    }
+    
+}
+
+pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
+pc.onicecandidate = event => {
+    if (event.candidate === null) {
+        document.getElementById('localSessionDescription').value = btoa(JSON.stringify(pc.localDescription));
+        
+        $.ajax({
+            url: "/video/webrtc/session/get",
+            
+            data: {
+                local_session: btoa(JSON.stringify(pc.localDescription))
+            },
+            
+            type: 'POST',
+            dataType: 'json',
+            beforeSend: function () {
+            },
+            success: function (result) {
+                //alert(JSON.stringify(result));
+                
+                if (result.remote_session) {
+                    document.getElementById('remoteSessionDescription').value = result.remote_session
+                }
+            },
+            error: function (result) {
+                //alert(JSON.stringify(result));
+            },
+            complete: function () {
+                
+            },
+        });
+    }
+}
+
+// Offer to receive 1 audio, and 1 video track
+pc.addTransceiver('video', {
+    direction: 'sendrecv'
+})
+pc.addTransceiver('audio', {
+    direction: 'sendrecv'
+})
+
+pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
+
+window.startSession = () => {
+    const sd = document.getElementById('remoteSessionDescription').value
+    if (sd === '') {
+        return alert('Session Description must not be empty')
+    }
+
+    try {
+        pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sd))))
+    } catch (e) {
+        alert(e)
+    }
+}
+
+window.copySessionDescription = () => {
+    const browserSessionDescription = document.getElementById('localSessionDescription')
+
+    browserSessionDescription.focus()
+    browserSessionDescription.select()
+
+    try {
+        const successful = document.execCommand('copy')
+        const msg = successful ? 'successful' : 'unsuccessful'
+        log('Copying SessionDescription was ' + msg)
+    } catch (err) {
+        log('Oops, unable to copy SessionDescription ' + err)
+    }
+}
+</script>
+{{ end }}

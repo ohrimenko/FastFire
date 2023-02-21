@@ -1,0 +1,17 @@
+{{ define "base" }}<!DOCTYPE html>
+<html>
+
+<head>
+  <title>{{ .Title }}</title>
+  {{ block "extrahead" .}}{{ end }}
+</head>
+
+<body>
+  {{ template "body" . }}
+  
+  <script src="/static/assets/js/jquery.min.js"></script>
+  {{ block "extrabody" . }}{{ end }}
+</body>
+
+</html>
+{{ end }}

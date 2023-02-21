@@ -1,0 +1,8 @@
+.text-error{
+    color: red;
+}
+
+.block-img-upload .fa-times {
+    cursor: pointer;
+    margin-left: 6px;
+}

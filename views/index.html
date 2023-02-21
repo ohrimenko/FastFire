@@ -1,0 +1,21 @@
+{{ define "body" }}
+<div><a href="/admin">Admin Panel</a></div>
+<div><a href="/chat">Chat Panel</a></div>
+<div><a href="/video">Video Panel</a></div>
+<h1>{{ .User.Login }}</h1>
+<p>{{ .User }}</p>
+<div>
+<div class="categories_select">
+  <ul>
+    {{ range $key, $value := .Rows }}
+      <li>{{ $key }}. {{ $value }}</li>
+    {{ end }}
+  </ul>
+  <ul>
+    {{ range .Rows }}
+      <li>{{ . }}</li>
+    {{ end }}
+  </ul>
+</div>
+</div>
+{{ end }}
