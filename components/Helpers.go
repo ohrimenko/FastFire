@@ -22,6 +22,10 @@ import (
 	"io"
 	"io/ioutil"
 	"strings"
+
+	crand "crypto/rand"
+	"encoding/binary"
+	"math/big"
 )
 
 type Message struct {
@@ -619,10 +623,7 @@ func MustReadStdin() string {
 // Encode encodes the input in base64
 // It can optionally zip the input before encoding
 func Encode(obj interface{}) string {
-	b, err := json.Marshal(obj)
-	if err != nil {
-		panic(err)
-	}
+	b, _ := json.Marshal(obj)
 
 	if false {
 		b = Zip(b)
@@ -643,10 +644,7 @@ func Decode(in string, obj interface{}) {
 		b = Unzip(b)
 	}
 
-	err = json.Unmarshal(b, obj)
-	if err != nil {
-		panic(err)
-	}
+	json.Unmarshal(b, obj)
 }
 
 func Zip(in []byte) []byte {
@@ -695,4 +693,36 @@ func SetReaderFile(filename string) func(_ int64) io.Reader {
 		}
 		return file
 	}
+}
+
+func RandString(n int) string {
+	val, err := GenerateCryptoRandomString(n, "123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	if err != nil {
+		return ""
+	}
+
+	return val
+}
+
+// GenerateCryptoRandomString generates a random string for cryptographic usage.
+func GenerateCryptoRandomString(n int, runes string) (string, error) {
+	letters := []rune(runes)
+	b := make([]rune, n)
+	for i := range b {
+		v, err := crand.Int(crand.Reader, big.NewInt(int64(len(letters))))
+		if err != nil {
+			return "", err
+		}
+		b[i] = letters[v.Int64()]
+	}
+	return string(b), nil
+}
+
+// CryptoUint64 returns cryptographic random uint64.
+func CryptoUint64() (uint64, error) {
+	var v uint64
+	if err := binary.Read(crand.Reader, binary.LittleEndian, &v); err != nil {
+		return 0, err
+	}
+	return v, nil
 }

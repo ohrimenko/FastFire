@@ -1,10 +1,10 @@
 package admin
 
 import (
-	"net/http"
 	"backnet/components"
 	"backnet/controllers"
 	"backnet/models"
+	"net/http"
 )
 
 type ControllerAuth struct {
@@ -52,7 +52,7 @@ func (сontroller ControllerAuth) Authorize(w http.ResponseWriter, r *http.Reque
 
 		if user.Valid() {
 			if components.CheckPasswordHash(r.Form.Get("password"), user.Password.Get()) {
-				request.Sess.Set("AuthUserId", user.Id.Get())
+				request.Session("AuthUserId", user.Id.Get())
 
 				http.Redirect(w, r, components.Route("admin.index"), http.StatusMovedPermanently)
 				return
@@ -86,7 +86,7 @@ func (сontroller ControllerAuth) Logout(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	request.Sess.Delete("AuthUserId")
+	request.Session("AuthUserId", nil)
 
 	http.Redirect(w, r, components.Route("admin.auth.login"), http.StatusFound)
 }

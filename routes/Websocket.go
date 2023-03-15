@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"backnet/config"
@@ -19,11 +20,35 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func (route Route) Websocket(router *mux.Router) {
-	wsControllerMain := ws.NewControllerMain()
-	ws := controllers.NewWebsocket(1000000, wsControllerMain.OnConnect, wsControllerMain.OnMessage, wsControllerMain.OnClose)
+var originHosts []string = []string{}
 
-	router.Name("websocket.index").Methods("GET").Path("/chat").HandlerFunc(wsControllerMain.Index)
+var wsCtrl *controllers.Websocket
+
+func (route Route) Websocket(router *mux.Router) {
+	if config.Env("WS_CHECK_ORIGN") == "true" || config.Env("WS_CHECK_ORIGN") == "1" {
+		upgrader.CheckOrigin = func(r *http.Request) bool {
+			return true
+		}
+	} else if len(originHosts) > 0 {
+		upgrader.CheckOrigin = func(r *http.Request) bool {
+			for i, _ := range originHosts {
+				if originHosts[i] == r.Header.Get("Origin") {
+					return true
+				}
+			}
+
+			return false
+		}
+	}
+
+	wsControllerMain := ws.NewControllerMain()
+	if wsCtrl == nil {
+		wsCtrl = controllers.NewWebsocket(1000000, wsControllerMain.OnConnect, wsControllerMain.OnMessage, wsControllerMain.OnClose)
+
+		if !(config.Env("WS_CHECK_ORIGN") == "true" || config.Env("WS_CHECK_ORIGN") == "false" || config.Env("WS_CHECK_ORIGN") == "1" || config.Env("WS_CHECK_ORIGN") == "0") && len(config.Env("WS_CHECK_ORIGN")) > 0 {
+			originHosts = strings.Split(config.Env("WS_CHECK_ORIGN"), ",")
+		}
+	}
 
 	router.Name("websocket.ws").Methods("GET").Path("/ws").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -32,12 +57,12 @@ func (route Route) Websocket(router *mux.Router) {
 			return
 		}
 
-		wsClient, err := ws.NewWebsocketClient(conn)
+		wsClient, err := wsCtrl.NewWebsocketClient(conn)
 
-		ws.Register(wsClient)
+		wsCtrl.Register(wsClient)
 
 		defer func() {
-			ws.Unregister(wsClient)
+			wsCtrl.Unregister(wsClient)
 			wsClient.Connect.Close()
 		}()
 
@@ -55,7 +80,7 @@ func (route Route) Websocket(router *mux.Router) {
 				break
 			}
 			message = bytes.TrimSpace(bytes.Replace(message, []byte{'\n'}, []byte{' '}, -1))
-			ws.Broadcast(wsClient, message)
+			wsCtrl.Broadcast(wsClient, message)
 		}
 	})
 }

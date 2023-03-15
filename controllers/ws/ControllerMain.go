@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"backnet/config"
 	"fmt"
 	"net/http"
 
@@ -29,22 +30,22 @@ func (сontroller ControllerMain) Index(w http.ResponseWriter, r *http.Request) 
 		"views/websocket/layouts/main.html",
 		"views/websocket/main/index.html",
 	}, 200, map[string]any{
-		"Title": "websocket chat",
+		"Title":   "websocket chat",
+		"WsHost":  config.Env("HOST"),
+		"WsPort":  config.Env("WS_PORT"),
+		"WssPort": config.Env("WSS_PORT"),
 	})
 }
 
 func (сontroller ControllerMain) OnConnect(wsClient *controllers.WebsocketClient) {
-	wsClient.SendAll(fmt.Sprint("connection registered: ", wsClient.Key()))
-	wsClient.Key()
+	controllers.WebsocketSendAll(fmt.Sprint("connection registered: ", wsClient.Key()))
 }
 
 func (сontroller ControllerMain) OnMessage(wsClient *controllers.WebsocketClient, message []byte) {
-	wsClient.Send(wsClient.Key(), "send...")
-	wsClient.SendAll(message)
-	wsClient.Key()
+	controllers.WebsocketSend(wsClient.Key(), "send...")
+	controllers.WebsocketSendAll(message)
 }
 
 func (сontroller ControllerMain) OnClose(wsClient *controllers.WebsocketClient) {
-	wsClient.SendAll(fmt.Sprint("connection unregistered: ", wsClient.Key()))
-	wsClient.Key()
+	controllers.WebsocketSendAll(fmt.Sprint("connection unregistered: ", wsClient.Key()))
 }

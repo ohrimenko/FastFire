@@ -1,0 +1,190 @@
+{{ define "extrahead" }}
+<style>
+textarea {
+    width: 500px;
+    min-height: 75px;
+}
+#video1 {
+    border: 1px solid grey;
+}
+.div-media .media {
+    border: 3px solid grey;
+    background-color: #696969;
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+    max-height: 600px;
+        
+    height: unset;
+    aspect-ratio: 720 / 540;                
+}
+    
+.div-media .media.active {
+border: 3px solid #A52A2A;
+}
+</style>
+{{ end }}
+
+{{ define "body" }}
+<button id="buttonWertcPlay" onclick="wertcCamera()">Camera</button>
+<button id="buttonWertcPlay" onclick="wertcPlay()">Play</button>
+<br /><br />
+
+<div class="div-media">
+  <video class="media" id="video" onclick="if(!pc){wertcPlay();}" autoplay></video>
+  <audio class="" id="audio" onclick="if(!pc){wertcPlay();}" autoplay></audio>
+  <br />
+</div>
+
+Logs<br />
+<div id="logs"></div>
+{{ end }}
+
+{{ define "extrabody" }}
+<script>
+var pcCamera;
+var pcVideo;
+var video = document.getElementById("video");
+var audio = document.getElementById("audio");
+
+function wertcCamera() {
+    if (pcCamera) {
+        pcCamera.close();
+    }
+
+    pcCamera = new RTCPeerConnection({
+        iceServers: [
+            {
+                urls: 'stun:stun.l.google.com:19302'
+            }
+        ]
+    });
+    
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+        //video.srcObject = stream;
+        pcCamera.addStream(stream);
+        pcCamera.createOffer().then(d => pcCamera.setLocalDescription(d)).catch(function(msg) {
+            document.getElementById('logs').innerHTML += msg + '<br>';
+        });
+    }).catch(function(msg) {
+        document.getElementById('logs').innerHTML += msg + '<br>';
+    });
+
+    pcCamera.addTransceiver('video', {
+        direction: 'sendrecv'
+    });
+    pcCamera.addTransceiver('audio', {
+        direction: 'sendrecv'
+    });
+
+    pcCamera.oniceconnectionstatechange = function(msg) {
+        document.getElementById('logs').innerHTML += pcCamera.iceConnectionState + '<br>';
+    };
+    pcCamera.onicecandidate = event => {
+        if (event.candidate === null) {
+            $.ajax({
+                url: "/video/webrtc/camera/stream/set",
+            
+                data: {                                                     
+                    local_session: btoa(JSON.stringify(pcCamera.localDescription))
+                },
+            
+                type: 'POST',
+                dataType: 'json',
+                beforeSend: function () {
+                },
+                success: function (result) {
+                    //alert(JSON.stringify(result));
+                
+                    if (result.remote_session) {
+                        try {
+                            pcCamera.setRemoteDescription(JSON.parse(atob(result.remote_session)));
+                        } catch (e) {     ;
+                            console.log(e)
+                        }
+                    }
+                },
+                error: function (result) {
+                },
+                complete: function () {
+                },
+            });
+        }
+    };
+}
+
+function wertcPlay() {
+    if (pcVideo) {
+        pcVideo.close();
+    }
+    
+    pcVideo = new RTCPeerConnection({
+        iceServers: [{
+            urls: 'stun:stun.l.google.com:19302'
+        }]
+    });
+
+    pcVideo.ontrack = function (event) {
+        //alert(event.track.kind);
+        
+        if (event.track.kind == "video") {
+            video.srcObject = event.streams[0];
+            video.autoplay = true;
+            video.controls = true;
+        }
+        if (event.track.kind == "audio" && false) {
+            audio.srcObject = event.streams[0];
+            audio.autoplay = true;
+            audio.controls = true;
+        }
+    };
+
+    pcVideo.oniceconnectionstatechange = function() {
+        document.getElementById('logs').innerHTML += pcVideo.iceConnectionState + '<br>';
+    };
+    
+    pcVideo.onicecandidate = event => {
+        if (event.candidate === null) {
+            $.ajax({
+                url: "/video/webrtc/camera/stream/get",
+            
+                data: {                                                     
+                    local_session: btoa(JSON.stringify(pcVideo.localDescription))
+                },
+            
+                type: 'POST',
+                dataType: 'json',
+                beforeSend: function () {
+                },
+                success: function (result) {
+                    //alert(JSON.stringify(result));
+                
+                    if (result.remote_session) {
+                        try {
+                            pcVideo.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(result.remote_session))));
+                        } catch (e) {     ;
+                            console.log(e)
+                        }
+                    }
+                },
+                error: function (result) {
+                },
+                complete: function () {
+                },
+            });
+        }
+    };
+
+    pcVideo.addTransceiver('video', {
+        direction: 'sendrecv'
+    });
+    pcVideo.addTransceiver('audio', {
+        direction: 'sendrecv'
+    });
+                                                                
+    pcVideo.createOffer().then(d => pcVideo.setLocalDescription(d)).catch(function(msg) {
+        document.getElementById('logs').innerHTML += msg + '<br>';
+    });
+}
+</script>
+{{ end }}

@@ -30,7 +30,7 @@ window.onload = function () {
 
     if (window["WebSocket"]) {
         conn = new WebSocket(
-            (document.location.protocol == "https:" ? "wss://" : "ws://") + document.location.host + "/ws"
+            (document.location.protocol == "https:" ? "wss://" : "ws://") + "{{ .WsHost }}:" + (document.location.protocol == "https:" ? "{{ .WssPort }}" : "{{ .WsPort }}") + "/ws"
         );
         conn.onclose = function (evt) {
             var item = document.createElement("div");

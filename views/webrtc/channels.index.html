@@ -1,0 +1,180 @@
+{{ define "extrahead" }}
+<style>
+html {
+    overflow: hidden;
+}
+
+body {
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background: gray;
+}
+
+#log {
+    background: white;
+    margin: 0;
+    padding: 0.5em 0.5em 0.5em 0.5em;
+    position: absolute;
+    top: 0.5em;
+    left: 0.5em;
+    right: 0.5em;
+    bottom: 3em;
+    overflow: auto;
+}
+
+#form {
+    padding: 0 0.5em 0 0.5em;
+    margin: 0;
+    position: absolute;
+    bottom: 1em;
+    left: 0px;
+    width: 100%;
+    overflow: hidden;
+}
+.msg {
+    color: #191970;
+    font-family: cursive;
+}
+.text-error {
+    color: #B22222;
+}
+</style>
+{{ end }}
+
+{{ define "body" }}
+<div id="log"></div>
+<form id="form" onsubmit="window.sendMessage(); return false;">
+    <input type="button" value="Send to Webrtc DataChannel" onclick="window.sendMessage()" />
+    <input type="text" id="msg" size="64" autofocus autocomplete="off" />
+</form>
+{{ end }}
+
+{{ define "extrabody" }}
+<script>
+var pc;
+var sendChannel;
+
+initPc();
+
+function initPc(cb) {
+    if (pc) {
+        pc.close();
+    }
+    
+    pc = new RTCPeerConnection({
+        iceServers: [
+            {
+                urls: 'stun:stun.l.google.com:19302'
+            }
+        ]
+    });
+
+    sendChannel = pc.createDataChannel('foo');
+    sendChannel.onclose = function () {
+        console.log('sendChannel has closed');
+    };
+    sendChannel.onopen = function () {
+        console.log('sendChannel has opened');
+    };
+    
+    sendChannel.onmessage = function (e) {
+        var cb = function (message) {
+            document.getElementById('log').innerHTML += '<div class="msg">' + message + '</div>';
+            
+            var block = document.getElementById("log");
+            block.scrollTop = block.scrollHeight;
+        }
+        
+        if (e.data && e.data instanceof ArrayBuffer && e.data.byteLength !== undefined) {
+            cb((new TextDecoder("utf-8")).decode(e.data)); // decode Uint8Array to string
+        }
+        if (e.data && e.data instanceof Blob && e.data.size !== undefined) {
+            e.data.text().then((text) => { // decode Blob to string
+                cb(text);
+            }).catch((error) => {
+                console.error(error);
+            });
+        }
+    };
+
+    pc.oniceconnectionstatechange = function() {
+        document.getElementById('log').innerHTML += pc.iceConnectionState + '<br>';
+        
+        if (pc.iceConnectionState == "connected") {
+            if (cb) {
+                setTimeout(function () {
+                    cb();
+                }, 100);
+            }
+        }
+    };
+    pc.onicecandidate = event => {
+        if (event.candidate === null) {
+            $.ajax({
+                url: "/webrtc/channels/session/get",
+            
+                data: {                                                     
+                    local_session: btoa(JSON.stringify(pc.localDescription))
+                },
+            
+                type: 'POST',
+                dataType: 'json',
+                beforeSend: function () {
+                },
+                success: function (result) {
+                    //alert(JSON.stringify(result));
+                
+                    if (result.remote_session) {
+                        try {
+                            pc.setRemoteDescription(JSON.parse(atob(result.remote_session)));
+                        } catch (e) {
+                            console.log(e);
+                        }
+                    } else if (result.error) {
+                        document.getElementById('log').innerHTML += "<div class=\"text-error\">" + result.error + "</div>";
+                    }
+                },
+                error: function (result) {
+                },
+                complete: function () {
+                },
+            });
+        }
+    }
+
+    pc.onnegotiationneeded = e => pc.createOffer().then(d => pc.setLocalDescription(d)).catch(function (msg) {
+        document.getElementById('log').innerHTML += msg + '<br>';
+    });
+}
+
+function sendMessage (rec) {
+    if (!pc) {
+        initPc(function () {
+            if (!rec) {
+                sendMessage(true);
+            }
+        });
+        return;
+    }
+    
+    var message = document.getElementById('msg').value;
+    if (message === '') {
+        return alert('Message must not be empty');
+    }
+    
+    try {
+        sendChannel.send(message);
+        document.getElementById('msg').value = "";
+    } catch (e) {
+        initPc(function () {
+            if (!rec) {
+                sendMessage(true);
+            }
+        });
+    }
+}
+</script>
+{{ end }}

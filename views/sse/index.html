@@ -1,0 +1,202 @@
+{{ define "extrahead" }}
+<style>
+html {
+    overflow: hidden;
+}
+
+body {
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background: gray;
+}
+
+#log {
+    background: white;
+    margin: 0;
+    padding: 0.5em 0.5em 0.5em 0.5em;
+    position: absolute;
+    top: 0.5em;
+    left: 0.5em;
+    right: 0.5em;
+    bottom: 3em;
+    overflow: auto;
+}
+
+#form {
+    padding: 0 0.5em 0 0.5em;
+    margin: 0;
+    position: absolute;
+    bottom: 1em;
+    left: 0px;
+    width: 100%;
+    overflow: hidden;
+}
+.msg {
+    color: #191970;
+    font-family: cursive;
+}
+.text-error {
+    color: #B22222;
+}
+</style>
+{{ end }}
+
+{{ define "body" }}
+<div id="log"></div>
+<form id="form" onsubmit="window.sendMessage(); return false;">
+    <input type="button" value="Send to Sse Connect" onclick="window.sendMessage()" />
+    <input type="text" id="msg" size="64" autofocus autocomplete="off" />
+</form>
+{{ end }}
+
+{{ define "extrabody" }}
+<script>
+
+var sse = new SseConnect({
+    urlConnect: (document.location.protocol == "https:" ? "https://" : "http://") + "{{ .SseHost }}:" + (document.location.protocol == "https:" ? "{{ .SsesPort }}" : "{{ .SsePort }}") + "/sse",
+    urlMessage: "/sse/message",
+    onConnect: function (data) {
+        document.getElementById('log').innerHTML += "<div>Connected: " + sse.clientId + "</div>";
+    },
+    onMessage: function (data) {
+        document.getElementById('log').innerHTML += "<div class=\"msg\">" + data + "</div>";
+    },
+    onClose: function (data) {
+        document.getElementById('log').innerHTML += "<div>Closed: " + sse.clientId + "</div>";
+    },
+});
+
+window.sendMessage = () => {
+    var message = document.getElementById('msg').value;
+    if (message == '') {
+        return alert('Message must not be empty');
+    }
+    
+    sse.send(message);
+    document.getElementById('msg').value = "";
+};
+
+function SseConnect(args) {
+    var $this = this;
+    
+    this.sse = null;
+    
+    this.clientId = null;
+    
+    this.urlConnect = null;
+    this.urlMessage = null;
+    
+    this.onConnect = null;
+    this.onMessage = null;
+    this.onClose = null;
+    
+    if (args.urlConnect) {
+        this.urlConnect = args.urlConnect;
+    }
+    
+    if (args.urlMessage) {
+        this.urlMessage = args.urlMessage;
+    }
+    
+    if (args.onConnect) {
+        this.onConnect = args.onConnect;
+    }
+    
+    if (args.onMessage) {
+        this.onMessage = args.onMessage;
+    }
+    
+    if (args.onClose) {
+        this.onClose = args.onClose;
+    }
+    
+    if (this.urlConnect) {
+        this.sse = new EventSource(this.urlConnect);
+                
+        this.sse.addEventListener("open", ev => {
+        });
+        this.sse.addEventListener("connect", ev => {
+            var json = JSON.parse(ev.data);
+            
+            if (json.client_id) {
+                this.clientId = json.client_id;
+            }
+            
+            if ($this.onConnect) {
+                $this.onConnect(ev.data);
+            }
+        });
+        this.sse.addEventListener("message", ev => {
+            if ($this.onMessage) {
+                $this.onMessage(ev.data);
+            }
+        });
+    }
+}
+
+SseConnect.prototype.send = function(data) {
+    if (this.urlMessage && this.sse && this.clientId && this.sse.readyState == 1) {
+        fetch(this.urlMessage, {
+            method: 'POST',
+            headers: {
+                'Content-type': 'application/x-www-form-urlencoded'
+            },
+            body: SseConnect.httpBuildQuery({
+                client_id: this.clientId,
+                data: data,
+            }),
+        }).then((response) => {
+            if (response.status >= 200 && response.status < 300) {
+                return response.json();
+            } else {
+                let error = new Error(response.statusText);
+                error.response = response;
+                throw error;
+            }
+        }).then((response) => {
+            console.log(response);
+        }).catch((e) => {
+        });
+    }
+}
+
+SseConnect.prototype.close = function() {
+    if (this.sse) {
+        this.sse.close();
+        if ($this.onClose) {
+            $this.onClose();
+        }
+    }
+}
+
+SseConnect.httpBuildQuery = function (obj, num_prefix, temp_key) {
+    var output_string = []
+
+    Object.keys(obj).forEach(function (val) {
+
+        var key = val;
+
+        num_prefix && !isNaN(key) ? key = num_prefix + key : ''
+
+        var key = encodeURIComponent(key.replace(/[!'()*]/g, escape));
+        temp_key ? key = temp_key + '[' + key + ']' : ''
+
+        if (typeof obj[val] === 'object') {
+            var query = SseConnect.httpBuildQuery(obj[val], null, key)
+            output_string.push(query)
+        } else {
+            var value = String(obj[val]);
+
+            value = encodeURIComponent(value.replace(/[!'()*]/g, escape));
+
+            output_string.push(key + '=' + value)
+        }
+    })
+
+    return output_string.join('&')
+}
+</script>
+{{ end }}

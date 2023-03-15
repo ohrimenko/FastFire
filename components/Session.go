@@ -1,10 +1,10 @@
 package components
 
 import (
+	"backnet/config"
 	"errors"
 	"log"
 	"net/http"
-	"backnet/config"
 	"time"
 
 	"backnet/components/filecache"
@@ -31,48 +31,50 @@ type storeStruct struct {
 }
 
 type Sess struct {
-	session *sessions.Session
-	valid   bool
+	Session *sessions.Session
+	Valid   bool
 	Update  bool
+	Init    bool
 }
 
 func (s *Sess) Get(key interface{}) interface{} {
-	if s.valid {
-		if val, ok := s.session.Values[key]; ok {
+	if s.Valid {
+		if val, ok := s.Session.Values[key]; ok {
 			return val
 		}
-		return s.session.Values[key]
+		return s.Session.Values[key]
 	}
 	return nil
 }
 
 func (s *Sess) Set(key interface{}, val interface{}) {
-	if s.valid {
-		s.session.Values[key] = val
+	if s.Valid {
+		s.Session.Values[key] = val
 		s.Update = true
 	}
 }
 
 func (s *Sess) Delete(key interface{}) {
-	if s.valid {
-		if _, ok := s.session.Values[key]; ok {
-			delete(s.session.Values, key)
+	if s.Valid {
+		if _, ok := s.Session.Values[key]; ok {
+			delete(s.Session.Values, key)
 			s.Update = true
 		}
 	}
 }
 
 func (s *Sess) Save(w http.ResponseWriter, r *http.Request) {
-	if s.valid {
-		s.session.Save(r, w)
+	if s.Valid {
+		s.Session.Save(r, w)
 	}
 }
 
 func NewSess(s *sessions.Session) (*Sess, error) {
 	if s != nil {
 		return &Sess{
-			session: s,
-			valid:   true,
+			Session: s,
+			Valid:   true,
+			Init:    false,
 		}, nil
 	}
 

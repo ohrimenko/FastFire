@@ -1,8 +1,9 @@
 package controllers
 
 import (
-	"math/rand"
 	"backnet/config"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,9 +32,9 @@ type Websocket struct {
 	Key             uint64
 	MaxCountInStack uint64
 	I               uint64
-	FuncRegister    func(wsClient *WebsocketClient)
-	FuncMessage     func(wsRequest *WebsocketClient, message []byte)
-	FuncUnregister  func(wsClient *WebsocketClient)
+	FuncRegister    func(*WebsocketClient)
+	FuncMessage     func(*WebsocketClient, []byte)
+	FuncUnregister  func(*WebsocketClient)
 }
 
 var Websockets map[uint64]*Websocket
@@ -78,12 +79,12 @@ func (wsStack *WebsocketStack) Delete() {
 	}
 }
 
-func NewWebsocket(maxConnect uint64, register func(wsClient *WebsocketClient), message func(wsRequest *WebsocketClient, message []byte), unregister func(wsClient *WebsocketClient)) *Websocket {
+func NewWebsocket(maxConnect uint64, register func(*WebsocketClient), message func(*WebsocketClient, []byte), unregister func(*WebsocketClient)) *Websocket {
 	if Websockets == nil {
 		Websockets = make(map[uint64]*Websocket)
 	}
 
-	key := uint64(rand.Intn(1000000) + 1000000)
+	key := uint64(time.Now().Unix())
 
 	Websockets[key] = &Websocket{
 		Stack:           map[uint64]*WebsocketStack{},
@@ -277,14 +278,38 @@ func (ws *Websocket) SendAll(message any) {
 	}
 }
 
-func (ws *Websocket) Send(wsKey uint64, stackKey uint64, clientKey uint64, message any) {
-	if wsKey > 0 && stackKey > 0 && clientKey > 0 && ws.Key == wsKey {
-		if wsStack, ok := ws.Stack[stackKey]; ok {
-			if wsStack.Count > 0 {
-				wsBroadcast := NewBroadcastWebsocket(wsKey, stackKey, clientKey, message)
+func (ws *Websocket) Send(key string, message any) {
+	splitKey := strings.Split(key, ":")
 
-				wsStack.Broadcast <- wsBroadcast
+	if len(splitKey) == 4 {
+		if splitKey[0] == "ws" {
+			if wsKey, err := strconv.ParseUint(splitKey[1], 10, 64); err == nil {
+				if stackKey, err := strconv.ParseUint(splitKey[2], 10, 64); err == nil {
+					if clientKey, err := strconv.ParseUint(splitKey[3], 10, 64); err == nil {
+						if wsKey > 0 && stackKey > 0 && clientKey > 0 && ws.Key == wsKey {
+							if wsStack, ok := ws.Stack[stackKey]; ok {
+								if wsStack.Count > 0 {
+									wsBroadcast := NewBroadcastWebsocket(wsKey, stackKey, clientKey, message)
+
+									wsStack.Broadcast <- wsBroadcast
+								}
+							}
+						}
+					}
+				}
 			}
 		}
+	}
+}
+
+func WebsocketSendAll(message any) {
+	for i, _ := range Websockets {
+		Websockets[i].SendAll(message)
+	}
+}
+
+func WebsocketSend(key string, message any) {
+	for i, _ := range Websockets {
+		Websockets[i].Send(key, message)
 	}
 }

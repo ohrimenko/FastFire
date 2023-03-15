@@ -1,7 +1,12 @@
 {{ define "body" }}
 <div><a href="/admin">Admin Panel</a></div>
-<div><a href="/chat">Chat Panel</a></div>
-<div><a href="/video">Video Panel</a></div>
+<div><a href="/video/mediadata">Video MediaData</a></div>
+<div><a href="/chat">Chat Websocket</a></div>
+<div><a href="/video">Video Stream Webrtc</a></div>
+<div><a href="/cam">Camera Save Webrtc</a></div>
+<div><a href="/cam/stream">Camera Stream Webrtc</a></div>
+<div><a href="/channels/index">Chat Webrtc</a></div>
+<div><a href="/sse/index">Chat Sse</a></div>
 <h1>{{ .User.Login }}</h1>
 <p>{{ .User }}</p>
 <div>

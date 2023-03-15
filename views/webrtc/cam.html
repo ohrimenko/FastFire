@@ -1,0 +1,107 @@
+{{ define "extrahead" }}
+<style>
+textarea {
+    width: 500px;
+    min-height: 75px;
+}
+#video1 {
+    border: 1px solid grey;
+}
+.div-media .media {
+    border: 3px solid grey;
+    background-color: #696969;
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+    max-height: 600px;
+        
+    height: unset;
+    aspect-ratio: 720 / 540;                
+}
+    
+.div-media .media.active {
+border: 3px solid #A52A2A;
+}
+</style>
+{{ end }}
+
+{{ define "body" }}
+<button id="buttonWertcPlay" onclick="wertcPlay()">Play</button>
+<br /><br />
+
+<div class="div-media">
+  <video class="media" id="video1" onclick="if(!pc){wertcPlay();}" autoplay muted></video>
+  <br />
+</div>
+
+Logs<br />
+<div id="logs"></div>
+{{ end }}
+
+{{ define "extrabody" }}
+<script>
+var pc;
+var video = document.getElementById("video1");
+
+function wertcPlay() {
+    if (pc) {
+        pc.close();
+    }
+
+    pc = new RTCPeerConnection({
+        iceServers: [
+            {
+                urls: 'stun:stun.l.google.com:19302'
+            }
+        ]
+    });
+
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+        video.srcObject = stream;
+        pc.addStream(stream);
+        pc.createOffer().then(d => pc.setLocalDescription(d)).catch(function(msg) {
+            document.getElementById('logs').innerHTML += msg + '<br>';
+        });
+    }).catch(function(msg) {
+        document.getElementById('logs').innerHTML += msg + '<br>';
+    });
+
+    pc.oniceconnectionstatechange = function(msg) {
+        document.getElementById('logs').innerHTML += pc.iceConnectionState + '<br>';
+    };
+
+    pc.onicecandidate = event => {
+        if (event.candidate === null) {
+            $.ajax({
+                url: "/video/webrtc/camera/set",
+            
+                data: {                                                     
+                    local_session: btoa(JSON.stringify(pc.localDescription))
+                },
+            
+                type: 'POST',
+                dataType: 'json',
+                beforeSend: function () {
+                },
+                success: function (result) {
+                    //alert(JSON.stringify(result));
+                
+                    if (result.remote_session) {
+                        try {
+                            //pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(result.remote_session))));
+                            pc.setRemoteDescription(JSON.parse(atob(result.remote_session)));
+                        } catch (e) {     ;
+                            console.log(e)
+                        }
+                    }
+                },
+                error: function (result) {
+                },
+                complete: function () {
+                },
+            });
+        }
+    };
+}
+</script>
+{{ end }}

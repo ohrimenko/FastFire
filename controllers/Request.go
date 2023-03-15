@@ -309,6 +309,17 @@ func (req *Request) Store() *Request {
 }
 
 func (req *Request) Session(args ...interface{}) interface{} {
+	if !req.Sess.Init {
+		req.Sess.Init = true
+
+		session, err := req.Request.Cookie("session")
+		if err != nil || (session != nil && session.Value == "") {
+			req.Sess.Set("__init__", 1)
+			req.Sess.Save(req.Writer, req.Request)
+			req.Sess.Delete("__init__")
+		}
+	}
+
 	if len(args) == 1 {
 		return req.Sess.Get(args[0])
 	}

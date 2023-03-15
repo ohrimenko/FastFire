@@ -1,0 +1,124 @@
+{{ define "extrahead" }}
+<style>
+textarea {
+    width: 500px;
+    min-height: 75px;
+}
+</style>
+<style>
+    .div-media .media {
+        border: 3px solid grey;
+        background-color: #696969;
+        width: 100%;
+        max-width: 800px;
+        height: auto;
+        max-height: 600px;
+        
+        height: unset;
+        aspect-ratio: 557 / 314;                
+    }
+    
+    .div-media .media.active {
+        border: 3px solid #A52A2A;
+    }
+</style>
+{{ end }}
+
+{{ define "body" }}
+<button id="buttonWertcPlay" onclick="wertcPlay()">Play</button>
+<br/>
+<br/>
+
+<div class="div-media" id="remoteVideos">
+  <video class="media" id="remoteVideo" poster="/static/media/kyiv.webm.png" onclick="if(!pc){wertcPlay();}"></video>
+</div>
+<br />
+
+Logs
+<br/>
+<div id="div"></div>
+{{ end }}
+
+{{ define "extrabody" }}
+<script>
+var pc;
+var video = document.getElementById("remoteVideo");
+
+function wertcPlay() {
+    if (pc) {
+        pc.close();
+    }
+    
+    pc = new RTCPeerConnection({
+        iceServers: [{
+            urls: 'stun:stun.l.google.com:19302'
+        }]
+    });
+
+    pc.ontrack = function (event) {
+        if (event.track.kind == "video") {
+            video.srcObject = event.streams[0];
+            video.autoplay = true;
+            video.controls = true;
+        }
+    
+        if (event.track.kind == "audio" && false) {
+            const el = document.createElement(event.track.kind);
+            el.srcObject = event.streams[0];
+            el.autoplay = true;
+            el.controls = true;
+
+            document.getElementById('remoteVideos').appendChild(el);
+        }
+    };
+
+    pc.oniceconnectionstatechange = function() {
+        document.getElementById('div').innerHTML += pc.iceConnectionState + '<br>';
+    
+    };
+    
+    pc.onicecandidate = event => {
+        if (event.candidate === null) {
+            $.ajax({
+                url: "/video/webrtc/session/get",
+            
+                data: {                                                     
+                    local_session: btoa(JSON.stringify(pc.localDescription))
+                },
+            
+                type: 'POST',
+                dataType: 'json',
+                beforeSend: function () {
+                },
+                success: function (result) {
+                    //alert(JSON.stringify(result));
+                
+                    if (result.remote_session) {
+                        try {
+                            pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(result.remote_session))));
+                        } catch (e) {     ;
+                            console.log(e)
+                        }
+                    }
+                },
+                error: function (result) {
+                },
+                complete: function () {
+                },
+            });
+        }
+    };
+
+    pc.addTransceiver('video', {
+        direction: 'sendrecv'
+    });
+    pc.addTransceiver('audio', {
+        direction: 'sendrecv'
+    });
+                                                                
+    pc.createOffer().then(d => pc.setLocalDescription(d)).catch(function(msg) {
+        document.getElementById('div').innerHTML += msg + '<br>';
+    });
+}
+</script>
+{{ end }}
